@@ -1,7 +1,10 @@
-# Convolutions: 1 --> 128 --> 64 MaxPool 64 --> 64 MaxPool
-# After Flatten: 64 --> 256 --> 256 --> 2
-# ReLu, ausser letzte mit Softmax
-# Adadelta mit lr = 0,003, Scheduler mit Threshold 0.005 min fuer Val_Loss, Faktor = 1/(2**(1/2)) Batchsize = 128
+# Input is 40*40 pixel, 1 feature map
+# Layers: 1*40*40 --> 128*40*40 --> 64*40*40 --> 64*20*20 --> 64*20*20 --> 64*20*20 --> 64*10*10 --> 64 --> 256 --> 256 --> 2 
+# Activation always with ReLu except last. Last activation is Softmax
+# Adadelta as optimiser, initial learning rate = 0,003 
+# Scheduler reduces learning rate by 1/np.sqrt(2) if validation loss does not decrease more than 0.0005
+# Batchsize = 128
+# Cross Entropy as loss function
 
 import numpy as np
 
@@ -20,9 +23,6 @@ from sklearn.metrics import roc_curve
 # This time, we have converted the information of the energy of the jet constituents into an image. Each image has 40x40 pixels = 1600 pixels. Each column represents the *colour* intensity in each pixel.
 # 
 # Let's define a function, `to_image`, that rewrites these columns as a 40x40 numpy matrix, with one additional index, that represents the colours of the image (see later boxes).
-
-# In[20]:
-
 
 # 1 image has 40x40 pixels = 1600 pixels
 
@@ -53,7 +53,7 @@ class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
         
-        self.padd = nn.ZeroPad2d((1, 2, 1, 2))
+        self.padd = nn.ZeroPad2d((1, 2, 1, 2)) # ZeroPadding for constant image shapes after convolutions
 
         self.conv1 = nn.Conv2d(1, 128, 4, padding = False)
         self.conv2 = nn.Conv2d(128, 64, 4, padding = False)
@@ -123,6 +123,7 @@ optimizer = torch.optim.Adadelta(model.parameters(), lr=0.03)
 #scheduler used to optimze the optimizer
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=1/np.sqrt(2), threshold=0.0005)
 
+#Dataloader for train data to predict the scores of the train events
 def Predictor_Zwolf(arr):
     y_prediction = np.empty([np.shape(arr)[0],2])
     for i in range(1200):
@@ -134,6 +135,8 @@ def Predictor_Zwolf(arr):
             y_prediction[i*1000+j] = y_prediction_batch[j]
     return y_prediction
 
+
+#Dataloader for validation data to predict the scores of the validation events
 def Predictor_Vier(arr):
     y_prediction = np.empty([np.shape(arr)[0],2])
     for i in range(400):
@@ -211,7 +214,7 @@ for ep in range(n_epochs):
     train_roc = roc_curve(y_train, y_pred_train[0:1200000,1])
     val_roc = roc_curve(y_val, y_pred_val[0:400000,1])
     
-    # Calculate auc
+    # Calculate AUC
     train_auc = roc_auc_score(y_train, y_pred_train[0:1200000,1])
     val_auc = roc_auc_score(y_val, y_pred_val[0:400000,1])
     
